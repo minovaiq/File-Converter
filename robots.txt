@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://fileconverter.5starth.com/sitemap.xml
