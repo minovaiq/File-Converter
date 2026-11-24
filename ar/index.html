@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta name="google-adsense-account" content="ca-pub-1289110611393600">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="حوّل الصور إلى JPG أو PNG أو WebP أو BMP أو PDF على جهازك.">
+<title>محوّل الصور | File Converter</title>
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABIklEQVR4nO2a2w3CMAxFnYhh6AIwDQxHp6ELwDbwFSlykuZlxXaU89kGdE+dhxE1UMDj9vmVjKNmPzaTG3M6gCs45kwkekNKcExMxOILUsMDxLPZ3ABp4Iw2dUMyftZgCmnDAuh6+g6XWX0FjMan76O+AmwCr/eV5HtYBFx4ConhAjh0r8Rwgef9G1zrkWCZQpQSbIuYSqLqHKDaOXLE5FKIOwdqwgMIFKhltRLcLAFulgA3S4Ab9QKXlg+N6IlKWwr1FagWGNWRltLUC8UkartIKpqmEPXPwh6a14AUia5FLEGiexfCEqPXAsk26kJzLGSyc4BtFyr5K1Mq+7GZOU5ijVVwmeeoAICuKvhZbeqGVHDGYApJlohlm/NlD4zk123+btZuLH873tEAAAAASUVORK5CYII=">
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+<style>footer{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}footer nav,.bar nav{gap:12px;flex-wrap:wrap}@media(max-width:480px){.bar{gap:10px;flex-wrap:wrap}.bar nav{width:100%}}</style>
+<style>body{font-family:Tahoma,Arial,sans-serif}h1,.brand,h2{letter-spacing:normal}.tiles button{text-align:start}[dir=rtl] select{appearance:auto;background:#fff}</style>
+<script src="/locale.js" defer></script>
+<link rel="canonical" href="https://fileconverter.5starth.com/ar/">
+<link rel="alternate" hreflang="en" href="https://fileconverter.5starth.com/">
+<link rel="alternate" hreflang="ar" href="https://fileconverter.5starth.com/ar/">
+</head>
+<body>
+<header><div class="bar"><a class="brand" href="#"><span class="logo" aria-hidden="true">⇄</span>محوّل الملفات</a><nav aria-label="روابط الموقع"><a href="./">المحوّل</a><a href="guide.html">الدليل</a><a href="about.html">عن الموقع</a><a href="privacy.html">الخصوصية</a><a href="/" data-language="en" lang="en" hreflang="en">English</a></nav></div></header>
+<main>
+<section class="intro" id="converter" aria-labelledby="title">
+<h1 id="title">محوّل <em>الصور</em></h1>
+<p>حوّل صورك إلى JPG أو PNG أو WebP أو BMP أو PDF مباشرةً على جهازك.</p>
+</section>
+<section class="panel" aria-label="تحويل الصور">
+<label class="drop" id="drop">
+<span class="upload" aria-hidden="true"><i></i></span>
+<strong>اسحب صورك وأفلتها هنا</strong>
+<span class="browse">اختيار الملفات</span>
+<small>JPG وPNG وWebP وGIF وBMP وAVIF · 25 ميغابايت لكل ملف</small>
+<input type="file" id="files" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif">
+</label>
+<ul id="queue" aria-label="الملفات المختارة" hidden></ul>
+<div class="controls">
+<label class="field">الصيغة المطلوبة<select id="format"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option><option value="bmp">BMP</option><option value="pdf">PDF</option></select></label>
+<label class="field" id="qualityField">الجودة <select id="quality"><option value=".92">عالية (92%)</option><option value=".8">متوازنة (80%)</option><option value=".6">حجم أصغر (60%)</option></select></label>
+<button id="convert" disabled>حوّل الملفات</button>
+</div>
+<p id="message" role="status" hidden></p>
+</section>
+<section class="formats" id="formats" aria-labelledby="formats-title">
+<h2 id="formats-title">صيغ الإخراج الشائعة</h2>
+<div class="tiles">
+<button data-format="jpg"><b>JPG</b><span>صور فوتوغرافية</span></button>
+<button data-format="png"><b>PNG</b><span>خلفية شفافة</span></button>
+<button data-format="webp"><b>WebP</b><span>صور الويب</span></button>
+<button data-format="bmp"><b>BMP</b><span>بدون ضغط</span></button>
+<button data-format="pdf"><b>PDF</b><span>مشاركة أو طباعة</span></button>
+</div>
+<p class="note">تتحول الصور المتحركة إلى صورة ثابتة.</p>
+</section>
+<section class="formats" aria-labelledby="help-title">
+<h2 id="help-title">طريقة تحويل الصور</h2>
+<ol>
+<li>اختر صورة أو أكثر أو اسحب الصور إلى منطقة التحويل.</li>
+<li>اختر صيغة الإخراج ومستوى الجودة عند توفره.</li>
+<li>Click حوّل الملفات, then download each result.</li>
+</ol>
+<p>استخدم JPG لمشاركة الصور، وPNG للحفاظ على الشفافية، وPDF لإنشاء مستند من صفحة واحدة. <a href="guide.html" style="text-decoration:underline">قارن الصيغ الخمس واعرف طريقة حل مشاكل التحويل.</a></p>
+</section>
+</main><footer><a href="./">محوّل الملفات</a><nav aria-label="روابط الموقع"><a href="./">المحوّل</a><a href="guide.html">الدليل</a><a href="about.html">عن الموقع</a><a href="privacy.html">الخصوصية</a><a href="/" data-language="en" lang="en" hreflang="en">English</a></nav></footer>
+</body></html>
