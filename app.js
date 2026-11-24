@@ -6,6 +6,7 @@ const drop = document.querySelector('#drop');
 const queue = document.querySelector('#queue');
 const format = document.querySelector('#format');
 const quality = document.querySelector('#quality');
+const maxSide = document.querySelector('#maxSide');
 const convert = document.querySelector('#convert');
 const message = document.querySelector('#message');
 const tiles = [...document.querySelectorAll('[data-format]')];
@@ -22,6 +23,7 @@ function render() {
   queue.hidden = entries.length === 0;
   convert.disabled = busy || !entries.length;
   filesInput.disabled = format.disabled = quality.disabled = busy;
+  if (maxSide) maxSide.disabled = busy;
   for (const tile of tiles) {
     tile.disabled = busy;
     tile.setAttribute('aria-pressed', tile.dataset.format === format.value);
@@ -37,7 +39,14 @@ function render() {
       download.href = entry.url;
       download.download = entry.file.name.replace(/\.[^.]+$/, '') + '.' + entry.extension;
       download.textContent = translate('Download ', 'تنزيل ') + entry.extension.toUpperCase();
-      row.append(download);
+      const details = document.createElement('span');
+      const kilobytes = entry.size / 1024;
+      const size = kilobytes >= 1024
+        ? (kilobytes / 1024).toFixed(1) + ' MB'
+        : Math.max(1, Math.round(kilobytes)) + ' KB';
+      details.textContent = entry.width + ' × ' + entry.height + ' · ' + size;
+      details.dir = 'ltr';
+      row.append(details, download);
     } else if (entry.error) {
       const error = document.createElement('span');
       error.textContent = entry.error;
@@ -104,6 +113,7 @@ function resetResults() {
 
 format.onchange = resetResults;
 quality.onchange = resetResults;
+maxSide?.addEventListener('change', resetResults);
 for (const tile of tiles) {
   tile.onclick = () => {
     if (format.value !== tile.dataset.format) {
@@ -203,14 +213,18 @@ async function decodeImage(file) {
   }
 }
 
-async function convertFile(file, extension, level) {
+async function convertFile(file, extension, level, limit) {
   const bitmap = await decodeImage(file);
   const canvas = document.createElement('canvas');
   try {
-    const width = bitmap.naturalWidth ?? bitmap.width;
-    const height = bitmap.naturalHeight ?? bitmap.height;
-    if (!width || !height) throw new Error(translate('The image has no readable dimensions.', 'تعذّرت قراءة أبعاد الصورة.'));
-    if (width * height > 32_000_000 || Math.max(width, height) > 8192) {
+    const sourceWidth = bitmap.naturalWidth ?? bitmap.width;
+    const sourceHeight = bitmap.naturalHeight ?? bitmap.height;
+    const largestSide = Math.max(sourceWidth, sourceHeight);
+    const scale = limit > 0 ? Math.min(1, limit / largestSide) : 1;
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    if (!sourceWidth || !sourceHeight) throw new Error(translate('The image has no readable dimensions.', 'تعذّرت قراءة أبعاد الصورة.'));
+    if (sourceWidth * sourceHeight > 32_000_000 || largestSide > 8192) {
       throw new Error(translate('Image dimensions are too large.', 'أبعاد الصورة تتجاوز الحد المدعوم.'));
     }
     canvas.width = width;
@@ -221,11 +235,12 @@ async function convertFile(file, extension, level) {
       context.fillStyle = '#fff';
       context.fillRect(0, 0, width, height);
     }
-    context.drawImage(bitmap, 0, 0);
-    if (extension === 'bmp') return makeBmp(canvas, context);
+    context.drawImage(bitmap, 0, 0, width, height);
+    if (extension === 'bmp') return {blob: makeBmp(canvas, context), width, height};
     const mime = ['jpg', 'pdf'].includes(extension) ? 'image/jpeg' : 'image/' + extension;
-    const blob = await encode(canvas, mime, level);
-    return extension === 'pdf' ? makePdf(blob, width, height) : blob;
+    const image = await encode(canvas, mime, level);
+    const blob = extension === 'pdf' ? makePdf(image, width, height) : image;
+    return {blob, width, height};
   } finally {
     bitmap.close?.();
     canvas.width = canvas.height = 0;
@@ -238,12 +253,17 @@ convert.onclick = async () => {
   busy = true;
   const extension = format.value;
   const level = Number(quality.value);
+  const limit = Number(maxSide?.value ?? 0);
   render();
   announce(translate('Converting ' + entries.length + ' image(s)…', 'جارٍ تحويل الصور (' + entries.length + ')…'));
   let completed = 0;
   for (const entry of entries) {
     try {
-      entry.url = URL.createObjectURL(await convertFile(entry.file, extension, level));
+      const {blob, width, height} = await convertFile(entry.file, extension, level, limit);
+      entry.url = URL.createObjectURL(blob);
+      entry.size = blob.size;
+      entry.width = width;
+      entry.height = height;
       entry.extension = extension;
       completed++;
     } catch (error) {
