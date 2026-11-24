@@ -1,0 +1,208 @@
+const filesInput = document.querySelector('#files');
+const drop = document.querySelector('#drop');
+const queue = document.querySelector('#queue');
+const format = document.querySelector('#format');
+const quality = document.querySelector('#quality');
+const convert = document.querySelector('#convert');
+const message = document.querySelector('#message');
+const tiles = [...document.querySelectorAll('[data-format]')];
+const entries = [];
+let busy = false;
+
+function announce(text) {
+  message.textContent = text;
+  message.hidden = !text;
+}
+
+function render() {
+  queue.replaceChildren();
+  queue.hidden = entries.length === 0;
+  convert.disabled = busy || !entries.length;
+  filesInput.disabled = format.disabled = quality.disabled = busy;
+  for (const tile of tiles) {
+    tile.disabled = busy;
+    tile.setAttribute('aria-pressed', tile.dataset.format === format.value);
+  }
+  document.querySelector('#qualityField').hidden = !['jpg', 'webp', 'pdf'].includes(format.value);
+  for (const entry of entries) {
+    const row = document.createElement('li');
+    const name = document.createElement('strong');
+    name.textContent = entry.file.name;
+    row.append(name);
+    if (entry.url) {
+      const download = document.createElement('a');
+      download.href = entry.url;
+      download.download = entry.file.name.replace(/\.[^.]+$/, '') + '.' + entry.extension;
+      download.textContent = 'Download ' + entry.extension.toUpperCase();
+      row.append(download);
+    } else if (entry.error) {
+      const error = document.createElement('span');
+      error.textContent = entry.error;
+      row.append(error);
+    }
+    const remove = document.createElement('button');
+    remove.textContent = 'Remove';
+    remove.disabled = busy;
+    remove.setAttribute('aria-label', 'Remove ' + entry.file.name);
+    remove.onclick = () => {
+      if (entry.url) URL.revokeObjectURL(entry.url);
+      entries.splice(entries.indexOf(entry), 1);
+      announce('');
+      render();
+    };
+    row.append(remove);
+    queue.append(row);
+  }
+}
+
+function addFiles(files) {
+  if (busy) return;
+  const rejected = [];
+  for (const file of files) {
+    if (!/\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(file.name) || !file.size || file.size > 25 * 1024 ** 2) {
+      rejected.push(file.name);
+      continue;
+    }
+    entries.push({file});
+  }
+  announce(rejected.length ? 'Unsupported, empty, or over 25 MB: ' + rejected.join(', ') : '');
+  render();
+}
+
+filesInput.onchange = () => {
+  addFiles(filesInput.files);
+  filesInput.value = '';
+};
+drop.ondragover = event => {
+  event.preventDefault();
+  if (!busy) drop.classList.add('active');
+};
+drop.ondragleave = () => drop.classList.remove('active');
+drop.ondrop = event => {
+  event.preventDefault();
+  drop.classList.remove('active');
+  addFiles(event.dataTransfer.files);
+};
+format.onchange = render;
+for (const tile of tiles) {
+  tile.onclick = () => {
+    format.value = tile.dataset.format;
+    render();
+    format.focus();
+  };
+}
+
+function encode(canvas, mime, level) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob?.type === mime) resolve(blob);
+      else reject(new Error('Output format unavailable in this browser.'));
+    }, mime, level);
+  });
+}
+
+function makeBmp(canvas, context) {
+  const {width, height} = canvas;
+  const stride = Math.ceil(width * 3 / 4) * 4;
+  const bytes = new Uint8Array(54 + stride * height);
+  const header = new DataView(bytes.buffer);
+  bytes.set([66, 77]);
+  for (const [offset, value] of [[2, bytes.length], [10, 54], [14, 40], [18, width], [22, height], [34, stride * height]]) {
+    header.setUint32(offset, value, true);
+  }
+  header.setUint16(26, 1, true);
+  header.setUint16(28, 24, true);
+  const pixels = context.getImageData(0, 0, width, height).data;
+  for (let y = 0; y < height; y++) {
+    let output = 54 + (height - 1 - y) * stride;
+    for (let x = 0; x < width; x++) {
+      const input = (y * width + x) * 4;
+      bytes[output++] = pixels[input + 2];
+      bytes[output++] = pixels[input + 1];
+      bytes[output++] = pixels[input];
+    }
+  }
+  return new Blob([bytes], {type: 'image/bmp'});
+}
+
+function makePdf(jpeg, width, height) {
+  const pageScale = Math.min(1, 842 / Math.max(width, height));
+  const w = (width * pageScale).toFixed(4);
+  const h = (height * pageScale).toFixed(4);
+  const draw = 'q\n' + w + ' 0 0 ' + h + ' 0 0 cm\n/Im0 Do\nQ\n';
+  const parts = [];
+  const offsets = [];
+  let size = 0;
+  function append(part) {
+    parts.push(part);
+    size += typeof part === 'string' ? part.length : part.size;
+  }
+  function object(...body) {
+    offsets.push(size);
+    append(offsets.length + ' 0 obj\n');
+    for (const part of body) append(part);
+    append('\nendobj\n');
+  }
+  append('%PDF-1.4\n');
+  object('<< /Type /Catalog /Pages 2 0 R >>');
+  object('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  object('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+  object('<< /Type /XObject /Subtype /Image /Width ' + width + ' /Height ' + height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.size + ' >>\nstream\n', jpeg, '\nendstream');
+  object('<< /Length ' + draw.length + ' >>\nstream\n' + draw + 'endstream');
+  const xref = size;
+  append('xref\n0 6\n0000000000 65535 f \n');
+  for (const offset of offsets) append(String(offset).padStart(10, '0') + ' 00000 n \n');
+  append('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return new Blob(parts, {type: 'application/pdf'});
+}
+
+async function convertFile(file, extension, level) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  try {
+    const {width, height} = bitmap;
+    if (width * height > 32_000_000 || Math.max(width, height) > 8192) {
+      throw new Error('Image dimensions are too large.');
+    }
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (['jpg', 'bmp', 'pdf'].includes(extension)) {
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, width, height);
+    }
+    context.drawImage(bitmap, 0, 0);
+    if (extension === 'bmp') return makeBmp(canvas, context);
+    const mime = ['jpg', 'pdf'].includes(extension) ? 'image/jpeg' : 'image/' + extension;
+    const blob = await encode(canvas, mime, level);
+    return extension === 'pdf' ? makePdf(blob, width, height) : blob;
+  } finally {
+    bitmap.close();
+    canvas.width = canvas.height = 0;
+  }
+}
+
+convert.onclick = async () => {
+  busy = true;
+  const extension = format.value;
+  const level = Number(quality.value);
+  render();
+  announce('Converting ' + entries.length + ' image(s)…');
+  let completed = 0;
+  for (const entry of entries) {
+    if (entry.url) URL.revokeObjectURL(entry.url);
+    entry.url = null;
+    entry.error = null;
+    try {
+      entry.url = URL.createObjectURL(await convertFile(entry.file, extension, level));
+      entry.extension = extension;
+      completed++;
+    } catch (error) {
+      entry.error = error instanceof DOMException ? 'Could not read this image.' : error.message;
+    }
+  }
+  busy = false;
+  render();
+  announce('Converted ' + completed + ' of ' + entries.length + ' image(s).');
+};
+render();
