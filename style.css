@@ -15,3 +15,14 @@ main{padding:0 20px;background:radial-gradient(ellipse 600px 360px at 50% 80px,#
 @media(min-width:741px){.controls{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(min-width:591px) and (max-width:740px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #queue li{flex-wrap:wrap}#queue li strong{min-width:110px}
+
+.controls{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.convert-actions{display:flex;justify-content:flex-end;margin-top:12px}
+.convert-actions #convert{width:auto;min-width:165px}
+#queue .result-actions{display:flex;gap:8px;align-items:center}
+#queue a{background:var(--accent);border-color:var(--accent);color:white;font-weight:650}
+#queue button:hover{background:#f2edff}
+#queue a:hover,.convert-actions #convert:not(:disabled):hover{background:#4e29bd}
+select:disabled,.tiles button:disabled{cursor:default;opacity:.65}
+.tiles span{display:block;overflow-wrap:anywhere}
+@media(max-width:590px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}.convert-actions #convert{width:100%}}
