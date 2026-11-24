@@ -43,3 +43,15 @@ select:disabled,.tiles button:disabled{cursor:default;opacity:.65}
 .primary-download{min-width:165px;background:var(--accent);color:#fff;border-radius:9px;padding:0 12px;min-height:43px;display:grid;place-items:center;font-weight:750}
 .primary-download:hover{background:#4e29bd}
 @media(max-width:590px){.primary-download{width:100%}}
+
+.site-footer{display:block;max-width:none;background:#201936;color:#f9f6ff;border:0;margin:0;padding:0 24px;font-size:14px}
+.site-footer-inner{max-width:1100px;margin:auto;display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:24px;padding:24px 0;align-items:start}
+.site-footer .brand{color:inherit}
+.site-footer .logo{flex:none;background:#6e45e7}
+.site-footer nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:8px}
+.site-footer h2{font-size:14px;letter-spacing:normal;margin:0 0 8px}
+.site-footer nav a,.site-footer-contact a{color:#e2d8f9;overflow-wrap:anywhere}
+.site-footer a:hover{color:white;text-decoration:underline}
+.site-footer a:focus-visible{outline-color:#e2d8f9}
+@media(max-width:680px){.site-footer-inner{grid-template-columns:1fr 1fr;gap:16px;padding:18px 0}.site-footer-brand{grid-column:1/-1}}
+@media(max-width:360px){.site-footer-inner{grid-template-columns:1fr}.site-footer-brand{grid-column:auto}}
