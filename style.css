@@ -55,3 +55,8 @@ select:disabled,.tiles button:disabled{cursor:default;opacity:.65}
 .site-footer a:focus-visible{outline-color:#e2d8f9}
 @media(max-width:680px){.site-footer-inner{grid-template-columns:1fr 1fr;gap:16px;padding:18px 0}.site-footer-brand{grid-column:1/-1}}
 @media(max-width:360px){.site-footer-inner{grid-template-columns:1fr}.site-footer-brand{grid-column:auto}}
+
+header .bar{flex-wrap:nowrap;gap:12px}
+.language-switch{display:grid;place-items:center;flex:0 0 44px;height:44px;border:1px solid var(--border);border-radius:50%;color:var(--accent)}
+.language-switch:hover{background:#f2edff;border-color:var(--accent)}
+header .brand .logo{flex:none}
