@@ -8,8 +8,8 @@
 <meta name="description" content="Convert images to JPG, PNG, WebP, BMP or PDF privately in your browser.">
 <title>File Converter — Convert images online</title>
 <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABIklEQVR4nO2a2w3CMAxFnYhh6AIwDQxHp6ELwDbwFSlykuZlxXaU89kGdE+dhxE1UMDj9vmVjKNmPzaTG3M6gCs45kwkekNKcExMxOILUsMDxLPZ3ABp4Iw2dUMyftZgCmnDAuh6+g6XWX0FjMan76O+AmwCr/eV5HtYBFx4ConhAjh0r8Rwgef9G1zrkWCZQpQSbIuYSqLqHKDaOXLE5FKIOwdqwgMIFKhltRLcLAFulgA3S4Ab9QKXlg+N6IlKWwr1FagWGNWRltLUC8UkartIKpqmEPXPwh6a14AUia5FLEGiexfCEqPXAsk26kJzLGSyc4BtFyr5K1Mq+7GZOU5ijVVwmeeoAICuKvhZbeqGVHDGYApJlohlm/NlD4zk123+btZuLH873tEAAAAASUVORK5CYII=">
-<link rel="stylesheet" href="style.css?v=2">
-<script src="app.js?v=2" defer></script>
+<link rel="stylesheet" href="style.css?v=3">
+<script src="app.js?v=3" defer></script>
 <style>footer{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}footer nav,.bar nav{gap:12px;flex-wrap:wrap}@media(max-width:480px){.bar{gap:10px;flex-wrap:wrap}.bar nav{width:100%}}</style>
 <script src="/locale.js" defer></script>
 <link rel="canonical" href="https://fileconverter.5starth.com/">
@@ -24,13 +24,17 @@
 <p>Convert your images to 10 output formats, including JPG, WebP, PDF, and ICO.<br class="desktop"> All files are processed directly on your device.</p>
 </section>
 <section class="panel" aria-label="Convert images">
-<label class="drop" id="drop">
+<div id="previewArea" class="preview-area">
+<div id="previews" class="preview-grid" hidden></div>
+<label class="drop" id="drop"><span class="drop-empty">
 <span class="upload" aria-hidden="true"><i></i></span>
 <strong>Drag &amp; drop your images</strong>
 <span class="browse">Choose files</span>
 <small>JPG, PNG, WebP, GIF, BMP and AVIF · 25 MB per file · 12 per batch</small>
+</span><span class="browse add-more">Add images</span>
 <input type="file" id="files" multiple accept=".jpg,.jpeg,.jfif,.png,.apng,.webp,.gif,.bmp,.dib,.avif">
 </label>
+</div>
 <ul id="queue" aria-label="Selected files" hidden></ul>
 <div class="controls">
 <label class="field">Convert to<select id="format"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option><option value="bmp">BMP</option><option value="pdf">PDF</option><option value="ico">ICO</option><option value="tiff">TIFF</option><option value="tga">TGA</option><option value="ppm">PPM</option><option value="qoi">QOI</option></select></label>
@@ -39,6 +43,7 @@
 </div>
 <div class="convert-actions">
 <button id="convert" disabled>Convert files</button>
+<a id="downloadResult" class="primary-download" hidden></a>
 </div>
 <p id="message" role="status" hidden></p>
 </section>
