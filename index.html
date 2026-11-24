@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Convert images to JPG, PNG, WebP, BMP or PDF privately in your browser.">
+<title>File Converter — Convert images online</title>
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABIklEQVR4nO2a2w3CMAxFnYhh6AIwDQxHp6ELwDbwFSlykuZlxXaU89kGdE+dhxE1UMDj9vmVjKNmPzaTG3M6gCs45kwkekNKcExMxOILUsMDxLPZ3ABp4Iw2dUMyftZgCmnDAuh6+g6XWX0FjMan76O+AmwCr/eV5HtYBFx4ConhAjh0r8Rwgef9G1zrkWCZQpQSbIuYSqLqHKDaOXLE5FKIOwdqwgMIFKhltRLcLAFulgA3S4Ab9QKXlg+N6IlKWwr1FagWGNWRltLUC8UkartIKpqmEPXPwh6a14AUia5FLEGiexfCEqPXAsk26kJzLGSyc4BtFyr5K1Mq+7GZOU5ijVVwmeeoAICuKvhZbeqGVHDGYApJlohlm/NlD4zk123+btZuLH873tEAAAAASUVORK5CYII=">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<header><div class="bar"><a class="brand" href="#"><span class="logo" aria-hidden="true">⇄</span>File Converter</a><nav aria-label="Main navigation"><a href="#converter">Converter</a><a href="#formats">Formats</a></nav></div></header>
+<main>
+<section class="intro" id="converter" aria-labelledby="title">
+<h1 id="title">Image <em>Converter</em></h1>
+<p>Convert your images to JPG, PNG, WebP, BMP, or PDF.<br class="desktop"> All files are processed directly on your device.</p>
+</section>
+<section class="panel" aria-label="Convert images">
+<label class="drop" id="drop">
+<span class="upload" aria-hidden="true"><i></i></span>
+<strong>Drag &amp; drop your images</strong>
+<span class="browse">Choose files</span>
+<small>JPG, PNG, WebP, GIF, BMP and AVIF · 25 MB per file</small>
+<input type="file" id="files" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif">
+</label>
+<ul id="queue" aria-label="Selected files" hidden></ul>
+<div class="controls">
+<label class="field">Convert to<select id="format"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option><option value="bmp">BMP</option><option value="pdf">PDF</option></select></label>
+<label class="field" id="qualityField">Quality <select id="quality"><option value=".92">High (92%)</option><option value=".8">Balanced (80%)</option><option value=".6">Small file (60%)</option></select></label>
+<button id="convert" disabled>Convert files</button>
+</div>
+<p id="message" role="status" hidden></p>
+</section>
+<section class="formats" id="formats" aria-labelledby="formats-title">
+<h2 id="formats-title">Popular output formats</h2>
+<div class="tiles">
+<button data-format="jpg"><b>JPG</b><span>Photos</span></button>
+<button data-format="png"><b>PNG</b><span>Transparency</span></button>
+<button data-format="webp"><b>WebP</b><span>Web images</span></button>
+<button data-format="bmp"><b>BMP</b><span>Uncompressed</span></button>
+<button data-format="pdf"><b>PDF</b><span>Share or print</span></button>
+</div>
+<p class="note">Animated images are converted to a single still image.</p>
+</section>
+</main><footer>File Converter</footer>
+</body></html>
