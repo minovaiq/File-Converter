@@ -33,6 +33,8 @@ function render() {
     const row = document.createElement('li');
     const name = document.createElement('strong');
     name.textContent = entry.file.name;
+    const actions = document.createElement('div');
+    actions.className = 'result-actions';
     row.append(name);
     if (entry.url) {
       const download = document.createElement('a');
@@ -46,7 +48,8 @@ function render() {
         : Math.max(1, Math.round(kilobytes)) + ' KB';
       details.textContent = entry.width + ' × ' + entry.height + ' · ' + size;
       details.dir = 'ltr';
-      row.append(details, download);
+      row.append(details);
+      actions.append(download);
     } else if (entry.error) {
       const error = document.createElement('span');
       error.textContent = entry.error;
@@ -62,7 +65,8 @@ function render() {
       announce('');
       render();
     };
-    row.append(remove);
+    actions.append(remove);
+    row.append(actions);
     queue.append(row);
   }
 }
@@ -70,14 +74,24 @@ function render() {
 function addFiles(files) {
   if (busy) return;
   const rejected = [];
+  let batchFull = false;
+  let totalSize = entries.reduce((sum, entry) => sum + entry.file.size, 0);
   for (const file of files) {
-    if (!/\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(file.name) || !file.size || file.size > 25 * 1024 ** 2) {
+    if (!/\.(jpe?g|jfif|a?png|webp|gif|bmp|dib|avif)$/i.test(file.name) || !file.size || file.size > 25 * 1024 ** 2) {
       rejected.push(file.name);
       continue;
     }
+    if (entries.length >= 12 || totalSize + file.size > 100 * 1024 ** 2) {
+      batchFull = true;
+      continue;
+    }
     entries.push({file});
+    totalSize += file.size;
   }
-  announce(rejected.length ? translate('Unsupported, empty, or over 25 MB: ', 'ملفات غير مدعومة أو فارغة أو تتجاوز 25 ميغابايت: ') + rejected.join(', ') : '');
+  const notices = [];
+  if (rejected.length) notices.push(translate('Unsupported, empty, or over 25 MB: ', 'ملفات غير مدعومة أو فارغة أو تتجاوز 25 ميغابايت: ') + rejected.slice(0, 5).join(', ') + (rejected.length > 5 ? '…' : ''));
+  if (batchFull) notices.push(translate('Batch limit: 12 files or 100 MB total.', 'حد الدفعة: 12 ملفاً أو 100 ميغابايت إجمالاً.'));
+  announce(notices.join(' '));
   render();
 }
 
@@ -189,10 +203,128 @@ function makePdf(jpeg, width, height) {
   return new Blob(parts, {type: 'application/pdf'});
 }
 
+async function makeIco(canvas) {
+  const png = await encode(canvas, 'image/png');
+  const header = new DataView(new ArrayBuffer(22));
+  header.setUint16(2, 1, true);
+  header.setUint16(4, 1, true);
+  header.setUint8(6, canvas.width % 256);
+  header.setUint8(7, canvas.height % 256);
+  header.setUint16(10, 1, true);
+  header.setUint16(12, 32, true);
+  header.setUint32(14, png.size, true);
+  header.setUint32(18, 22, true);
+  return new Blob([header.buffer, png], {type: 'image/x-icon'});
+}
+
+function rgbPixels(pixels) {
+  const rgb = new Uint8Array(pixels.length / 4 * 3);
+  for (let input = 0, output = 0; input < pixels.length; input += 4, output += 3) {
+    rgb[output] = pixels[input];
+    rgb[output + 1] = pixels[input + 1];
+    rgb[output + 2] = pixels[input + 2];
+  }
+  return rgb;
+}
+
+const pixelEncoders = {
+  ppm(pixels, width, height) {
+    return new Blob(['P6\n' + width + ' ' + height + '\n255\n', rgbPixels(pixels)], {type: 'image/x-portable-pixmap'});
+  },
+  tiff(pixels, width, height) {
+    const rgb = rgbPixels(pixels);
+    const tags = [
+      [256, 4, 1, width], [257, 4, 1, height], [258, 3, 3, 0],
+      [259, 3, 1, 1], [262, 3, 1, 2], [273, 4, 1, 0],
+      [277, 3, 1, 3], [278, 4, 1, height], [279, 4, 1, rgb.length],
+      [284, 3, 1, 1]
+    ];
+    const bitsOffset = 8 + 2 + tags.length * 12 + 4;
+    tags[2][3] = bitsOffset;
+    tags[5][3] = bitsOffset + 6;
+    const header = new DataView(new ArrayBuffer(bitsOffset + 6));
+    header.setUint16(0, 0x4949, true);
+    header.setUint16(2, 42, true);
+    header.setUint32(4, 8, true);
+    header.setUint16(8, tags.length, true);
+    for (const [index, [tag, type, count, value]] of tags.entries()) {
+      const offset = 10 + index * 12;
+      header.setUint16(offset, tag, true);
+      header.setUint16(offset + 2, type, true);
+      header.setUint32(offset + 4, count, true);
+      header.setUint32(offset + 8, value, true);
+    }
+    for (let offset = bitsOffset; offset < bitsOffset + 6; offset += 2) header.setUint16(offset, 8, true);
+    return new Blob([header.buffer, rgb], {type: 'image/tiff'});
+  },
+  tga(pixels, width, height) {
+    const header = new DataView(new ArrayBuffer(18));
+    header.setUint8(2, 2);
+    header.setUint16(12, width, true);
+    header.setUint16(14, height, true);
+    header.setUint8(16, 32);
+    header.setUint8(17, 0x28);
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index];
+      pixels[index] = pixels[index + 2];
+      pixels[index + 2] = red;
+    }
+    return new Blob([header.buffer, pixels], {type: 'image/x-tga'});
+  },
+  qoi(pixels, width, height) {
+    const header = new DataView(new ArrayBuffer(14));
+    header.setUint32(0, 0x716f6966);
+    header.setUint32(4, width);
+    header.setUint32(8, height);
+    header.setUint8(12, 4);
+    const chunks = new Uint8Array(pixels.length / 4 * 5);
+    let output = 0;
+    let last = 255;
+    let run = 0;
+    const source = new DataView(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+    for (let index = 0; index < pixels.length; index += 4) {
+      const pixel = source.getUint32(index);
+      if (pixel === last) {
+        run++;
+        if (run === 62) {
+          chunks[output++] = 0xc0 | (run - 1);
+          run = 0;
+        }
+        continue;
+      }
+      if (run) chunks[output++] = 0xc0 | (run - 1);
+      run = 0;
+      chunks[output++] = 0xff;
+      chunks.set(pixels.subarray(index, index + 4), output);
+      output += 4;
+      last = pixel;
+    }
+    if (run) chunks[output++] = 0xc0 | (run - 1);
+    return new Blob([header.buffer, chunks.subarray(0, output), Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 1)], {type: 'image/qoi'});
+  }
+};
+
 async function decodeImage(file) {
+  const bytes = new Uint8Array(await file.slice(0, 128).arrayBuffer());
+  const text = (start, length) => String.fromCharCode(...bytes.subarray(start, start + length));
+  const extension = file.name.split('.').pop().toLowerCase();
+  let mime;
+  if (/^(jpe?g|jfif)$/.test(extension) && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) mime = 'image/jpeg';
+  if (/^a?png$/.test(extension) && bytes[0] === 137 && text(1, 7) === 'PNG\r\n\x1a\n') mime = 'image/png';
+  if (extension === 'gif' && /^(GIF87a|GIF89a)$/.test(text(0, 6))) mime = 'image/gif';
+  if (extension === 'webp' && text(0, 4) === 'RIFF' && text(8, 4) === 'WEBP') mime = 'image/webp';
+  if (/^(bmp|dib)$/.test(extension) && text(0, 2) === 'BM') mime = 'image/bmp';
+  if (extension === 'avif' && text(4, 4) === 'ftyp') {
+    const end = Math.min(new DataView(bytes.buffer).getUint32(0), bytes.length);
+    for (let offset = 8; offset + 4 <= end; offset += 4) {
+      if (offset !== 12 && /^(avif|avis)$/.test(text(offset, 4))) mime = 'image/avif';
+    }
+  }
+  if (!mime) throw new Error(translate('The file contents do not match a supported image format.', 'محتوى الملف لا يطابق صيغة صورة مدعومة.'));
+  const imageFile = file.slice(0, file.size, mime);
   if (typeof createImageBitmap === 'function') {
     try {
-      return await createImageBitmap(file);
+      return await createImageBitmap(imageFile);
     } catch (error) {
       // Some browsers can render formats their bitmap decoder rejects.
       if (!(error instanceof DOMException)) throw error;
@@ -200,7 +332,7 @@ async function decodeImage(file) {
   }
 
   const image = new Image();
-  const url = URL.createObjectURL(file);
+  const url = URL.createObjectURL(imageFile);
   try {
     await new Promise((resolve, reject) => {
       image.onload = resolve;
@@ -220,7 +352,8 @@ async function convertFile(file, extension, level, limit) {
     const sourceWidth = bitmap.naturalWidth ?? bitmap.width;
     const sourceHeight = bitmap.naturalHeight ?? bitmap.height;
     const largestSide = Math.max(sourceWidth, sourceHeight);
-    const scale = limit > 0 ? Math.min(1, limit / largestSide) : 1;
+    const target = extension === 'ico' ? Math.min(limit || 256, 256) : limit;
+    const scale = target > 0 ? Math.min(1, target / largestSide) : 1;
     const width = Math.max(1, Math.round(sourceWidth * scale));
     const height = Math.max(1, Math.round(sourceHeight * scale));
     if (!sourceWidth || !sourceHeight) throw new Error(translate('The image has no readable dimensions.', 'تعذّرت قراءة أبعاد الصورة.'));
@@ -231,12 +364,17 @@ async function convertFile(file, extension, level, limit) {
     canvas.height = height;
     const context = canvas.getContext('2d');
     if (!context) throw new Error(translate('The browser could not allocate memory for this image.', 'ذاكرة المتصفح غير كافية لهذه الصورة.'));
-    if (['jpg', 'bmp', 'pdf'].includes(extension)) {
+    if (['jpg', 'bmp', 'pdf', 'tiff', 'ppm'].includes(extension)) {
       context.fillStyle = '#fff';
       context.fillRect(0, 0, width, height);
     }
     context.drawImage(bitmap, 0, 0, width, height);
     if (extension === 'bmp') return {blob: makeBmp(canvas, context), width, height};
+    if (extension === 'ico') return {blob: await makeIco(canvas), width, height};
+    if (Object.hasOwn(pixelEncoders, extension)) {
+      const pixels = context.getImageData(0, 0, width, height).data;
+      return {blob: pixelEncoders[extension](pixels, width, height), width, height};
+    }
     const mime = ['jpg', 'pdf'].includes(extension) ? 'image/jpeg' : 'image/' + extension;
     const image = await encode(canvas, mime, level);
     const blob = extension === 'pdf' ? makePdf(image, width, height) : image;
@@ -257,9 +395,14 @@ convert.onclick = async () => {
   render();
   announce(translate('Converting ' + entries.length + ' image(s)…', 'جارٍ تحويل الصور (' + entries.length + ')…'));
   let completed = 0;
+  let outputSize = 0;
   for (const entry of entries) {
     try {
       const {blob, width, height} = await convertFile(entry.file, extension, level, limit);
+      if (outputSize + blob.size > 160 * 1024 ** 2) {
+        throw new Error(translate('Batch output limit reached. Try fewer files or smaller dimensions.', 'بلغت حد حجم النتائج للدفعة. جرّب ملفات أقل أو أبعاداً أصغر.'));
+      }
+      outputSize += blob.size;
       entry.url = URL.createObjectURL(blob);
       entry.size = blob.size;
       entry.width = width;
