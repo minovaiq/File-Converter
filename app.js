@@ -73,6 +73,12 @@ filesInput.onchange = () => {
   addFiles(filesInput.files);
   filesInput.value = '';
 };
+// Keep a missed file drop from navigating away and discarding the queue.
+for (const type of ['dragover', 'drop']) {
+  window.addEventListener(type, event => {
+    if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+  });
+}
 drop.ondragover = event => {
   event.preventDefault();
   if (!busy) drop.classList.add('active');
@@ -83,11 +89,24 @@ drop.ondrop = event => {
   drop.classList.remove('active');
   addFiles(event.dataTransfer.files);
 };
-format.onchange = render;
+function resetResults() {
+  for (const entry of entries) {
+    if (entry.url) URL.revokeObjectURL(entry.url);
+    entry.url = null;
+    entry.error = null;
+  }
+  announce('');
+  render();
+}
+
+format.onchange = resetResults;
+quality.onchange = resetResults;
 for (const tile of tiles) {
   tile.onclick = () => {
-    format.value = tile.dataset.format;
-    render();
+    if (format.value !== tile.dataset.format) {
+      format.value = tile.dataset.format;
+      resetResults();
+    }
     format.focus();
   };
 }
@@ -95,8 +114,9 @@ for (const tile of tiles) {
 function encode(canvas, mime, level) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
-      if (blob?.type === mime) resolve(blob);
-      else reject(new Error('Output format unavailable in this browser.'));
+      if (!blob?.size) reject(new Error('The browser could not encode this image.'));
+      else if (blob.type !== mime) reject(new Error('This browser cannot export the selected format.'));
+      else resolve(blob);
     }, mime, level);
   });
 }
@@ -156,17 +176,44 @@ function makePdf(jpeg, width, height) {
   return new Blob(parts, {type: 'application/pdf'});
 }
 
+async function decodeImage(file) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(file);
+    } catch (error) {
+      // Some browsers can render formats their bitmap decoder rejects.
+      if (!(error instanceof DOMException)) throw error;
+    }
+  }
+
+  const image = new Image();
+  const url = URL.createObjectURL(file);
+  try {
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Could not read this image. It may be damaged or unsupported by this browser.'));
+      image.src = url;
+    });
+    return image;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function convertFile(file, extension, level) {
-  const bitmap = await createImageBitmap(file);
+  const bitmap = await decodeImage(file);
   const canvas = document.createElement('canvas');
   try {
-    const {width, height} = bitmap;
+    const width = bitmap.naturalWidth ?? bitmap.width;
+    const height = bitmap.naturalHeight ?? bitmap.height;
+    if (!width || !height) throw new Error('The image has no readable dimensions.');
     if (width * height > 32_000_000 || Math.max(width, height) > 8192) {
       throw new Error('Image dimensions are too large.');
     }
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d');
+    if (!context) throw new Error('The browser could not allocate memory for this image.');
     if (['jpg', 'bmp', 'pdf'].includes(extension)) {
       context.fillStyle = '#fff';
       context.fillRect(0, 0, width, height);
@@ -177,12 +224,14 @@ async function convertFile(file, extension, level) {
     const blob = await encode(canvas, mime, level);
     return extension === 'pdf' ? makePdf(blob, width, height) : blob;
   } finally {
-    bitmap.close();
+    bitmap.close?.();
     canvas.width = canvas.height = 0;
   }
 }
 
 convert.onclick = async () => {
+  if (busy || !entries.length) return;
+  resetResults();
   busy = true;
   const extension = format.value;
   const level = Number(quality.value);
@@ -190,9 +239,6 @@ convert.onclick = async () => {
   announce('Converting ' + entries.length + ' image(s)…');
   let completed = 0;
   for (const entry of entries) {
-    if (entry.url) URL.revokeObjectURL(entry.url);
-    entry.url = null;
-    entry.error = null;
     try {
       entry.url = URL.createObjectURL(await convertFile(entry.file, extension, level));
       entry.extension = extension;
