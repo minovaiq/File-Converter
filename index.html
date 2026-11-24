@@ -8,9 +8,10 @@
 <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABIklEQVR4nO2a2w3CMAxFnYhh6AIwDQxHp6ELwDbwFSlykuZlxXaU89kGdE+dhxE1UMDj9vmVjKNmPzaTG3M6gCs45kwkekNKcExMxOILUsMDxLPZ3ABp4Iw2dUMyftZgCmnDAuh6+g6XWX0FjMan76O+AmwCr/eV5HtYBFx4ConhAjh0r8Rwgef9G1zrkWCZQpQSbIuYSqLqHKDaOXLE5FKIOwdqwgMIFKhltRLcLAFulgA3S4Ab9QKXlg+N6IlKWwr1FagWGNWRltLUC8UkartIKpqmEPXPwh6a14AUia5FLEGiexfCEqPXAsk26kJzLGSyc4BtFyr5K1Mq+7GZOU5ijVVwmeeoAICuKvhZbeqGVHDGYApJlohlm/NlD4zk123+btZuLH873tEAAAAASUVORK5CYII=">
 <link rel="stylesheet" href="style.css">
 <script src="app.js" defer></script>
+<style>footer{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}footer nav,.bar nav{gap:12px;flex-wrap:wrap}@media(max-width:480px){.bar{gap:10px;flex-wrap:wrap}.bar nav{width:100%}}</style>
 </head>
 <body>
-<header><div class="bar"><a class="brand" href="#"><span class="logo" aria-hidden="true">⇄</span>File Converter</a><nav aria-label="Main navigation"><a href="#converter">Converter</a><a href="#formats">Formats</a></nav></div></header>
+<header><div class="bar"><a class="brand" href="#"><span class="logo" aria-hidden="true">⇄</span>File Converter</a><nav aria-label="Main navigation"><a href="#converter">Converter</a><a href="guide.html">Guide</a><a href="privacy.html">Privacy</a></nav></div></header>
 <main>
 <section class="intro" id="converter" aria-labelledby="title">
 <h1 id="title">Image <em>Converter</em></h1>
@@ -43,5 +44,14 @@
 </div>
 <p class="note">Animated images are converted to a single still image.</p>
 </section>
-</main><footer>File Converter</footer>
+<section class="formats" aria-labelledby="help-title">
+<h2 id="help-title">How to convert an image</h2>
+<ol>
+<li>Choose one or more images, or drag them into the upload area.</li>
+<li>Select your output format and, when available, the quality level.</li>
+<li>Click Convert files, then download each result.</li>
+</ol>
+<p>Use JPG for photos you want to share, PNG for a transparent background, or PDF for a single-page document. <a href="guide.html" style="text-decoration:underline">Compare all five formats and solve common conversion problems.</a></p>
+</section>
+</main><footer><a href="./">File Converter</a><nav aria-label="Footer navigation"><a href="./">Converter</a><a href="guide.html">Guide</a><a href="about.html">About</a><a href="privacy.html">Privacy</a></nav></footer>
 </body></html>
