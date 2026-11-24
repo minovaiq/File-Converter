@@ -2,7 +2,9 @@ const arabic = document.documentElement.lang === 'ar';
 const translate = (english, arabicText) => arabic ? arabicText : english;
 
 const filesInput = document.querySelector('#files');
-const drop = document.querySelector('#drop');
+const drop = document.querySelector('#previewArea') || document.querySelector('#drop');
+const previews = document.querySelector('#previews');
+const downloadResult = document.querySelector('#downloadResult');
 const queue = document.querySelector('#queue');
 const format = document.querySelector('#format');
 const quality = document.querySelector('#quality');
@@ -12,13 +14,72 @@ const message = document.querySelector('#message');
 const tiles = [...document.querySelectorAll('[data-format]')];
 const entries = [];
 let busy = false;
+let archiveUrl;
+let archiveGeneration = 0;
 
 function announce(text) {
   message.textContent = text;
   message.hidden = !text;
 }
 
+function resultFilename(entry) {
+  const base = entry.file.name.replace(/\.[^.]+$/, '').replace(/[\\/:\x00-\x1f]/g, '_').slice(0, 160);
+  return (base || 'image') + '.' + entry.extension;
+}
+
+function renderPreviews() {
+  if (!previews) return;
+  previews.replaceChildren();
+  previews.hidden = entries.length === 0;
+  drop.classList.toggle('has-images', entries.length > 0);
+  for (const entry of entries) {
+    const figure = document.createElement('figure');
+    const caption = document.createElement('figcaption');
+    caption.textContent = entry.file.name;
+    caption.dir = 'auto';
+    const placeholder = document.createElement('span');
+    placeholder.className = 'preview-placeholder';
+    placeholder.textContent = entry.previewPending
+      ? translate('Loading preview…', 'جارٍ تحميل المعاينة…')
+      : translate('Preview unavailable', 'المعاينة غير متاحة');
+    const url = entry.outputPreview || entry.inputPreview;
+    if (url) {
+      const image = document.createElement('img');
+      image.alt = entry.file.name;
+      image.onerror = () => image.replaceWith(placeholder);
+      image.src = url;
+      figure.append(image, caption);
+    } else {
+      figure.append(placeholder, caption);
+    }
+    previews.append(figure);
+  }
+}
+
+function clearArchive() {
+  archiveGeneration++;
+  if (archiveUrl) URL.revokeObjectURL(archiveUrl);
+  archiveUrl = null;
+}
+
 function render() {
+  renderPreviews();
+  const results = entries.filter(entry => entry.url);
+  const single = results.length === 1 ? results[0] : null;
+  const primaryUrl = downloadResult && !busy && (single?.url || archiveUrl);
+  convert.hidden = Boolean(primaryUrl);
+  if (downloadResult) {
+    downloadResult.hidden = !primaryUrl;
+    if (primaryUrl) {
+      downloadResult.href = primaryUrl;
+      downloadResult.download = single ? resultFilename(single) : 'converted-images.zip';
+      downloadResult.textContent = single
+        ? translate('Download ', 'تنزيل ') + single.extension.toUpperCase()
+        : translate('Download all (ZIP)', 'تنزيل الكل (ZIP)');
+    } else {
+      downloadResult.removeAttribute('href');
+    }
+  }
   queue.replaceChildren();
   queue.hidden = entries.length === 0;
   convert.disabled = busy || !entries.length;
@@ -39,7 +100,7 @@ function render() {
     if (entry.url) {
       const download = document.createElement('a');
       download.href = entry.url;
-      download.download = entry.file.name.replace(/\.[^.]+$/, '') + '.' + entry.extension;
+      download.download = resultFilename(entry);
       download.textContent = translate('Download ', 'تنزيل ') + entry.extension.toUpperCase();
       const details = document.createElement('span');
       const kilobytes = entry.size / 1024;
@@ -49,7 +110,7 @@ function render() {
       details.textContent = entry.width + ' × ' + entry.height + ' · ' + size;
       details.dir = 'ltr';
       row.append(details);
-      actions.append(download);
+      if (!primaryUrl || !single) actions.append(download);
     } else if (entry.error) {
       const error = document.createElement('span');
       error.textContent = entry.error;
@@ -61,7 +122,11 @@ function render() {
     remove.setAttribute('aria-label', translate('Remove ', 'إزالة ') + entry.file.name);
     remove.onclick = () => {
       if (entry.url) URL.revokeObjectURL(entry.url);
+      if (entry.inputPreview) URL.revokeObjectURL(entry.inputPreview);
+      clearArchive();
       entries.splice(entries.indexOf(entry), 1);
+      const remaining = entries.filter(item => item.url);
+      if (remaining.length > 1) prepareArchive(remaining);
       announce('');
       render();
     };
@@ -75,6 +140,7 @@ function addFiles(files) {
   if (busy) return;
   const rejected = [];
   let batchFull = false;
+  let added = false;
   let totalSize = entries.reduce((sum, entry) => sum + entry.file.size, 0);
   for (const file of files) {
     if (!/\.(jpe?g|jfif|a?png|webp|gif|bmp|dib|avif)$/i.test(file.name) || !file.size || file.size > 25 * 1024 ** 2) {
@@ -85,7 +151,18 @@ function addFiles(files) {
       batchFull = true;
       continue;
     }
-    entries.push({file});
+    if (!added) resetResults();
+    added = true;
+    const entry = {file, previewPending: true};
+    entries.push(entry);
+    inspectImage(file).then(image => {
+      if (entries.includes(entry)) entry.inputPreview = URL.createObjectURL(image);
+    }).catch(() => {
+      // Conversion reports the specific validation or decoding error.
+    }).finally(() => {
+      entry.previewPending = false;
+      if (entries.includes(entry)) renderPreviews();
+    });
     totalSize += file.size;
   }
   const notices = [];
@@ -116,9 +193,12 @@ drop.ondrop = event => {
   addFiles(event.dataTransfer.files);
 };
 function resetResults() {
+  clearArchive();
   for (const entry of entries) {
     if (entry.url) URL.revokeObjectURL(entry.url);
     entry.url = null;
+    entry.blob = null;
+    entry.outputPreview = null;
     entry.error = null;
   }
   announce('');
@@ -304,7 +384,7 @@ const pixelEncoders = {
   }
 };
 
-async function decodeImage(file) {
+async function inspectImage(file) {
   const bytes = new Uint8Array(await file.slice(0, 128).arrayBuffer());
   const text = (start, length) => String.fromCharCode(...bytes.subarray(start, start + length));
   const extension = file.name.split('.').pop().toLowerCase();
@@ -321,7 +401,11 @@ async function decodeImage(file) {
     }
   }
   if (!mime) throw new Error(translate('The file contents do not match a supported image format.', 'محتوى الملف لا يطابق صيغة صورة مدعومة.'));
-  const imageFile = file.slice(0, file.size, mime);
+  return file.slice(0, file.size, mime);
+}
+
+async function decodeImage(file) {
+  const imageFile = await inspectImage(file);
   if (typeof createImageBitmap === 'function') {
     try {
       return await createImageBitmap(imageFile);
@@ -342,6 +426,95 @@ async function decodeImage(file) {
     return image;
   } finally {
     URL.revokeObjectURL(url);
+  }
+}
+
+function makePreview(canvas) {
+  const thumbnail = document.createElement('canvas');
+  const scale = Math.min(1, 480 / Math.max(canvas.width, canvas.height));
+  thumbnail.width = Math.max(1, Math.round(canvas.width * scale));
+  thumbnail.height = Math.max(1, Math.round(canvas.height * scale));
+  try {
+    const context = thumbnail.getContext('2d');
+    if (!context) return null;
+    context.drawImage(canvas, 0, 0, thumbnail.width, thumbnail.height);
+    return thumbnail.toDataURL('image/png');
+  } catch {
+    return null;
+  } finally {
+    thumbnail.width = thumbnail.height = 0;
+  }
+}
+
+const crcTable = Uint32Array.from({length: 256}, (_, index) => {
+  let crc = index;
+  for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  return crc;
+});
+
+async function crc32(blob) {
+  let crc = 0xffffffff;
+  const reader = blob.stream().getReader();
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) return (crc ^ 0xffffffff) >>> 0;
+      for (const byte of value) crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 255];
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function makeArchive(results) {
+  const local = [];
+  const central = [];
+  const encoder = new TextEncoder();
+  let offset = 0;
+  let directorySize = 0;
+  for (const [index, {filename, blob}] of results.entries()) {
+    const name = encoder.encode((index + 1) + '-' + filename);
+    const checksum = await crc32(blob);
+    const header = new DataView(new ArrayBuffer(30));
+    header.setUint32(0, 0x04034b50, true);
+    header.setUint16(4, 20, true);
+    header.setUint16(6, 0x800, true);
+    header.setUint16(12, 0x21, true);
+    header.setUint32(14, checksum, true);
+    header.setUint32(18, blob.size, true);
+    header.setUint32(22, blob.size, true);
+    header.setUint16(26, name.length, true);
+    const record = new DataView(new ArrayBuffer(46));
+    record.setUint32(0, 0x02014b50, true);
+    record.setUint16(4, 20, true);
+    new Uint8Array(record.buffer).set(new Uint8Array(header.buffer, 4, 26), 6);
+    record.setUint32(42, offset, true);
+    local.push(header.buffer, name, blob);
+    central.push(record.buffer, name);
+    offset += header.byteLength + name.length + blob.size;
+    directorySize += record.byteLength + name.length;
+  }
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, results.length, true);
+  end.setUint16(10, results.length, true);
+  end.setUint32(12, directorySize, true);
+  end.setUint32(16, offset, true);
+  return new Blob([...local, ...central, end.buffer], {type: 'application/zip'});
+}
+
+async function prepareArchive(results) {
+  const generation = archiveGeneration;
+  try {
+    const archive = await makeArchive(results.map(entry => ({
+      filename: resultFilename(entry), blob: entry.blob
+    })));
+    if (generation !== archiveGeneration) return false;
+    archiveUrl = URL.createObjectURL(archive);
+    if (!busy) render();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -369,16 +542,17 @@ async function convertFile(file, extension, level, limit) {
       context.fillRect(0, 0, width, height);
     }
     context.drawImage(bitmap, 0, 0, width, height);
-    if (extension === 'bmp') return {blob: makeBmp(canvas, context), width, height};
-    if (extension === 'ico') return {blob: await makeIco(canvas), width, height};
+    const preview = makePreview(canvas);
+    if (extension === 'bmp') return {blob: makeBmp(canvas, context), width, height, preview};
+    if (extension === 'ico') return {blob: await makeIco(canvas), width, height, preview};
     if (Object.hasOwn(pixelEncoders, extension)) {
       const pixels = context.getImageData(0, 0, width, height).data;
-      return {blob: pixelEncoders[extension](pixels, width, height), width, height};
+      return {blob: pixelEncoders[extension](pixels, width, height), width, height, preview};
     }
     const mime = ['jpg', 'pdf'].includes(extension) ? 'image/jpeg' : 'image/' + extension;
     const image = await encode(canvas, mime, level);
     const blob = extension === 'pdf' ? makePdf(image, width, height) : image;
-    return {blob, width, height};
+    return {blob, width, height, preview};
   } finally {
     bitmap.close?.();
     canvas.width = canvas.height = 0;
@@ -398,12 +572,14 @@ convert.onclick = async () => {
   let outputSize = 0;
   for (const entry of entries) {
     try {
-      const {blob, width, height} = await convertFile(entry.file, extension, level, limit);
+      const {blob, width, height, preview} = await convertFile(entry.file, extension, level, limit);
       if (outputSize + blob.size > 160 * 1024 ** 2) {
         throw new Error(translate('Batch output limit reached. Try fewer files or smaller dimensions.', 'بلغت حد حجم النتائج للدفعة. جرّب ملفات أقل أو أبعاداً أصغر.'));
       }
       outputSize += blob.size;
       entry.url = URL.createObjectURL(blob);
+      entry.blob = blob;
+      entry.outputPreview = preview;
       entry.size = blob.size;
       entry.width = width;
       entry.height = height;
@@ -413,8 +589,10 @@ convert.onclick = async () => {
       entry.error = error instanceof DOMException ? translate('Could not read this image.', 'تعذّرت قراءة الصورة.') : error.message;
     }
   }
+  const archiveReady = completed < 2 || await prepareArchive(entries.filter(entry => entry.url));
   busy = false;
   render();
-  announce(translate('Converted ' + completed + ' of ' + entries.length + ' image(s).', 'اكتمل تحويل ' + completed + ' من أصل ' + entries.length + ' صورة.'));
+  const summary = translate('Converted ' + completed + ' of ' + entries.length + ' image(s).', 'اكتمل تحويل ' + completed + ' من أصل ' + entries.length + ' صورة.');
+  announce(archiveReady ? summary : summary + ' ' + translate('Download each file separately.', 'نزّل كل ملف على حدة.'));
 };
 render();
