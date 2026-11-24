@@ -1,3 +1,6 @@
+const arabic = document.documentElement.lang === 'ar';
+const translate = (english, arabicText) => arabic ? arabicText : english;
+
 const filesInput = document.querySelector('#files');
 const drop = document.querySelector('#drop');
 const queue = document.querySelector('#queue');
@@ -33,7 +36,7 @@ function render() {
       const download = document.createElement('a');
       download.href = entry.url;
       download.download = entry.file.name.replace(/\.[^.]+$/, '') + '.' + entry.extension;
-      download.textContent = 'Download ' + entry.extension.toUpperCase();
+      download.textContent = translate('Download ', 'تنزيل ') + entry.extension.toUpperCase();
       row.append(download);
     } else if (entry.error) {
       const error = document.createElement('span');
@@ -41,9 +44,9 @@ function render() {
       row.append(error);
     }
     const remove = document.createElement('button');
-    remove.textContent = 'Remove';
+    remove.textContent = translate('Remove', 'إزالة');
     remove.disabled = busy;
-    remove.setAttribute('aria-label', 'Remove ' + entry.file.name);
+    remove.setAttribute('aria-label', translate('Remove ', 'إزالة ') + entry.file.name);
     remove.onclick = () => {
       if (entry.url) URL.revokeObjectURL(entry.url);
       entries.splice(entries.indexOf(entry), 1);
@@ -65,7 +68,7 @@ function addFiles(files) {
     }
     entries.push({file});
   }
-  announce(rejected.length ? 'Unsupported, empty, or over 25 MB: ' + rejected.join(', ') : '');
+  announce(rejected.length ? translate('Unsupported, empty, or over 25 MB: ', 'ملفات غير مدعومة أو فارغة أو تتجاوز 25 ميغابايت: ') + rejected.join(', ') : '');
   render();
 }
 
@@ -114,8 +117,8 @@ for (const tile of tiles) {
 function encode(canvas, mime, level) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
-      if (!blob?.size) reject(new Error('The browser could not encode this image.'));
-      else if (blob.type !== mime) reject(new Error('This browser cannot export the selected format.'));
+      if (!blob?.size) reject(new Error(translate('The browser could not encode this image.', 'تعذّر حفظ الصورة في المتصفح.')));
+      else if (blob.type !== mime) reject(new Error(translate('This browser cannot export the selected format.', 'متصفحك لا يدعم الحفظ بالصيغة المطلوبة.')));
       else resolve(blob);
     }, mime, level);
   });
@@ -191,7 +194,7 @@ async function decodeImage(file) {
   try {
     await new Promise((resolve, reject) => {
       image.onload = resolve;
-      image.onerror = () => reject(new Error('Could not read this image. It may be damaged or unsupported by this browser.'));
+      image.onerror = () => reject(new Error(translate('Could not read this image. It may be damaged or unsupported by this browser.', 'تعذّرت قراءة الصورة. قد تكون تالفة أو بصيغة لا يدعمها متصفحك.')));
       image.src = url;
     });
     return image;
@@ -206,14 +209,14 @@ async function convertFile(file, extension, level) {
   try {
     const width = bitmap.naturalWidth ?? bitmap.width;
     const height = bitmap.naturalHeight ?? bitmap.height;
-    if (!width || !height) throw new Error('The image has no readable dimensions.');
+    if (!width || !height) throw new Error(translate('The image has no readable dimensions.', 'تعذّرت قراءة أبعاد الصورة.'));
     if (width * height > 32_000_000 || Math.max(width, height) > 8192) {
-      throw new Error('Image dimensions are too large.');
+      throw new Error(translate('Image dimensions are too large.', 'أبعاد الصورة تتجاوز الحد المدعوم.'));
     }
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('The browser could not allocate memory for this image.');
+    if (!context) throw new Error(translate('The browser could not allocate memory for this image.', 'ذاكرة المتصفح غير كافية لهذه الصورة.'));
     if (['jpg', 'bmp', 'pdf'].includes(extension)) {
       context.fillStyle = '#fff';
       context.fillRect(0, 0, width, height);
@@ -236,7 +239,7 @@ convert.onclick = async () => {
   const extension = format.value;
   const level = Number(quality.value);
   render();
-  announce('Converting ' + entries.length + ' image(s)…');
+  announce(translate('Converting ' + entries.length + ' image(s)…', 'جارٍ تحويل الصور (' + entries.length + ')…'));
   let completed = 0;
   for (const entry of entries) {
     try {
@@ -244,11 +247,11 @@ convert.onclick = async () => {
       entry.extension = extension;
       completed++;
     } catch (error) {
-      entry.error = error instanceof DOMException ? 'Could not read this image.' : error.message;
+      entry.error = error instanceof DOMException ? translate('Could not read this image.', 'تعذّرت قراءة الصورة.') : error.message;
     }
   }
   busy = false;
   render();
-  announce('Converted ' + completed + ' of ' + entries.length + ' image(s).');
+  announce(translate('Converted ' + completed + ' of ' + entries.length + ' image(s).', 'اكتمل تحويل ' + completed + ' من أصل ' + entries.length + ' صورة.'));
 };
 render();
